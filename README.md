@@ -11,7 +11,7 @@ Aplicación web que permite subir imágenes, aplicar filtros y procesar las tare
 - **Cola de mensajes** — Redis
 - **Workers** — Python + Pillow, corriendo en Docker
 - **Almacenamiento** — AWS S3
-- **Orquestación** — Docker Compose
+- **Despliegue** — Docker Compose
 - **Infraestructura** — Instancia EC2 en AWS
 
 ## Arquitectura
