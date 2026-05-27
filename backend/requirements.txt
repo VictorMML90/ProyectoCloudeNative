@@ -1,0 +1,6 @@
+fastapi
+uvicorn[standard]
+redis[asyncio]
+boto3
+python-multipart
+

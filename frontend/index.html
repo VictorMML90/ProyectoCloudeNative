@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Procesador de imágenes</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #f5f3ef;
+    --surface: #ffffff;
+    --border: #e8e4dd;
+    --border-dark: #cdc9c0;
+    --text: #1c1a17;
+    --muted: #8c8880;
+    --accent: #c96a2e;
+    --accent-bg: #fdf2eb;
+    --success: #2d6a4f;
+    --success-bg: #eaf3ee;
+    --error: #9b2226;
+    --error-bg: #fdf0f0;
+    --warning: #7b4f00;
+    --warning-bg: #fef8ee;
+    --proc-bg: #eef0f8;
+    --proc: #3d3d8f;
+    --radius: 10px;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; font-size: 14px; line-height: 1.5; }
+
+  header {
+    padding: 1rem 2rem;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .header-left { display: flex; align-items: center; gap: 10px; }
+  .header-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+  .header-label { font-size: 13px; font-weight: 500; color: var(--text); }
+  .header-stack { font-size: 12px; color: var(--muted); }
+
+  main {
+    max-width: 980px; margin: 0 auto;
+    padding: 2rem 1.5rem;
+    display: grid; grid-template-columns: 370px 1fr; gap: 1.5rem; align-items: start;
+  }
+  @media (max-width: 700px) { main { grid-template-columns: 1fr; } }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+  .card-header {
+    padding: 0.85rem 1.25rem;
+    border-bottom: 1px solid var(--border);
+    font-size: 11px; font-weight: 600; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--muted);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .card-body { padding: 1.25rem; }
+
+  /* Accent bar en el card izquierdo */
+  .card.upload { border-top: 3px solid var(--accent); }
+
+  #dropzone {
+    border: 1.5px dashed var(--border-dark);
+    border-radius: 8px; padding: 2rem 1rem;
+    text-align: center; cursor: pointer;
+    transition: border-color .2s, background .2s;
+    background: var(--bg);
+  }
+  #dropzone.over { border-color: var(--accent); background: #fdf2eb; }
+  #dropzone svg { display: block; margin: 0 auto 0.75rem; color: var(--accent); opacity: 0.6; }
+  #dropzone p { color: var(--muted); font-size: 13px; }
+  #dropzone strong { color: var(--text); font-weight: 500; }
+  #fileInput { display: none; }
+
+  #previewWrap { display: none; margin-top: 1rem; border-radius: 8px; overflow: hidden; border: 1px solid var(--border); position: relative; }
+  #previewCanvas { width: 100%; display: block; max-height: 200px; }
+  .preview-tag { position: absolute; top: 8px; left: 8px; font-size: 10px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; background: rgba(255,255,255,0.92); color: var(--muted); padding: 3px 8px; border-radius: 4px; }
+
+  .filters-label { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin: 1.25rem 0 0.6rem; }
+  .filters-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .filter-btn {
+    background: var(--bg); border: 1px solid var(--border);
+    color: var(--muted); border-radius: 6px; padding: 7px 4px;
+    font-family: 'Inter', sans-serif; font-size: 12px; cursor: pointer;
+    transition: all .15s; text-align: center;
+  }
+  .filter-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-bg); }
+  .filter-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 500; }
+
+  #submitBtn {
+    width: 100%; margin-top: 1.1rem; padding: 10px;
+    border: none; border-radius: 8px;
+    background: var(--accent); color: #fff;
+    font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 500;
+    cursor: pointer; transition: opacity .15s;
+  }
+  #submitBtn:hover { opacity: 0.88; }
+  #submitBtn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+  /* Jobs */
+  #jobsList { display: flex; flex-direction: column; }
+
+  .job-card {
+    border-bottom: 1px solid var(--border);
+    padding: 1rem 1.25rem;
+    animation: fadeIn .25s ease;
+    position: relative;
+  }
+  .job-card:last-child { border-bottom: none; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+  .job-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; gap: 8px; }
+  .job-top-left { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .job-name { font-size: 13px; font-weight: 500; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px; }
+
+  .status-pill { font-size: 11px; font-weight: 500; padding: 2px 9px; border-radius: 99px; white-space: nowrap; flex-shrink: 0; }
+  .status-pill.pendiente  { background: var(--warning-bg); color: var(--warning); }
+  .status-pill.en-proceso { background: var(--proc-bg);    color: var(--proc); }
+  .status-pill.completada { background: var(--success-bg); color: var(--success); }
+  .status-pill.error      { background: var(--error-bg);   color: var(--error); }
+
+  .job-top-right { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+
+  .delete-btn {
+    width: 22px; height: 22px; border-radius: 4px;
+    border: none; background: transparent;
+    color: var(--muted); cursor: pointer;
+    font-size: 14px; line-height: 1;
+    display: flex; align-items: center; justify-content: center;
+    transition: background .15s, color .15s;
+    padding: 0;
+  }
+  .delete-btn:hover { background: var(--error-bg); color: var(--error); }
+
+  .job-meta { font-size: 11px; color: var(--muted); margin-bottom: 8px; }
+
+  .progress-track { height: 2px; background: var(--border); border-radius: 99px; overflow: hidden; margin-bottom: 10px; }
+  .progress-fill { height: 100%; background: var(--accent); border-radius: 99px; transition: width .5s ease; }
+  .progress-fill.done { background: var(--success); }
+  .progress-fill.fail { background: var(--error); }
+
+  .before-after { display: none; gap: 8px; margin-top: 8px; }
+  .before-after.visible { display: grid; grid-template-columns: 1fr 1fr; }
+  .ba-wrap { position: relative; border-radius: 6px; overflow: hidden; }
+  .ba-wrap img { width: 100%; display: block; border-radius: 6px; }
+  .ba-tag { position: absolute; bottom: 5px; left: 5px; font-size: 10px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; background: rgba(255,255,255,0.9); color: var(--muted); padding: 2px 6px; border-radius: 3px; }
+
+  .dl-btn { display: none; margin-top: 8px; width: 100%; padding: 7px; border-radius: 6px; border: 1px solid var(--border-dark); background: transparent; color: var(--text); font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 500; cursor: pointer; transition: background .15s; }
+  .dl-btn:hover { background: var(--accent-bg); border-color: var(--accent); color: var(--accent); }
+  .dl-btn.visible { display: block; }
+
+  .spinner { display: inline-block; width: 11px; height: 11px; border: 1.5px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin .6s linear infinite; vertical-align: middle; margin-right: 6px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .empty { padding: 3rem 1.25rem; text-align: center; color: var(--muted); font-size: 13px; }
+
+  #toast { position: fixed; bottom: 1.5rem; right: 1.5rem; z-index: 99; background: var(--text); color: #fff; border-radius: 8px; padding: 10px 16px; font-size: 13px; transform: translateY(8px); opacity: 0; transition: all .25s; pointer-events: none; }
+  #toast.show { transform: translateY(0); opacity: 1; }
+
+  .jobs-count { font-size: 11px; font-weight: 500; background: var(--accent-bg); color: var(--accent); padding: 2px 8px; border-radius: 99px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <div class="header-dot"></div>
+    <span class="header-label">Procesador de imágenes</span>
+  </div>
+  <span class="header-stack">FastAPI · Redis · Docker · S3</span>
+</header>
+
+<main>
+  <div>
+    <div class="card upload">
+      <div class="card-header">Subir imagen</div>
+      <div class="card-body">
+        <div id="dropzone">
+          <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4">
+            <rect x="3" y="3" width="18" height="18" rx="2"/>
+            <circle cx="8.5" cy="8.5" r="1.5"/>
+            <path d="m21 15-5-5L5 21"/>
+          </svg>
+          <p><strong>Arrastra tu imagen aquí</strong></p>
+          <p>o haz clic para seleccionar</p>
+          <input type="file" id="fileInput" accept="image/*" />
+        </div>
+
+        <div id="previewWrap">
+          <canvas id="previewCanvas"></canvas>
+          <span class="preview-tag">Original</span>
+        </div>
+
+        <p class="filters-label">Filtros</p>
+        <div class="filters-grid">
+          <button class="filter-btn" data-filter="grayscale">Gris</button>
+          <button class="filter-btn" data-filter="sepia">Sepia</button>
+          <button class="filter-btn" data-filter="blur">Desenfoque</button>
+          <button class="filter-btn" data-filter="sharpen">Enfocar</button>
+          <button class="filter-btn" data-filter="resize">Redimensionar</button>
+          <button class="filter-btn" data-filter="thumbnail">Miniatura</button>
+        </div>
+
+        <button id="submitBtn" disabled>Procesar imagen</button>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="card" style="min-height: 420px;">
+      <div class="card-header">
+        <span>Trabajos</span>
+        <span class="jobs-count" id="jobsCount" style="display:none"></span>
+      </div>
+      <div id="jobsList">
+        <div class="empty">Aún no hay trabajos</div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<div id="toast"></div>
+
+<script>
+const API = 'http://34.227.138.126:8000';
+
+let selectedFile = null;
+let selectedFilters = new Set();
+const HISTORY_KEY = 'imgproc_jobs';
+
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2200);
+}
+
+function saveHistory(jobs) { localStorage.setItem(HISTORY_KEY, JSON.stringify(jobs)); }
+function loadHistory() { try { return JSON.parse(localStorage.getItem(HISTORY_KEY)) || []; } catch { return []; } }
+
+function updateCount() {
+  const cards = document.querySelectorAll('.job-card').length;
+  const badge = document.getElementById('jobsCount');
+  if (cards > 0) { badge.textContent = cards; badge.style.display = 'inline'; }
+  else badge.style.display = 'none';
+}
+
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileInput');
+dropzone.addEventListener('click', () => fileInput.click());
+dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('over'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('over'));
+dropzone.addEventListener('drop', e => {
+  e.preventDefault(); dropzone.classList.remove('over');
+  const file = e.dataTransfer.files[0];
+  if (file && file.type.startsWith('image/')) handleFile(file);
+  else toast('Solo se aceptan imágenes');
+});
+fileInput.addEventListener('change', () => { if (fileInput.files[0]) handleFile(fileInput.files[0]); });
+
+function handleFile(file) {
+  selectedFile = file;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const img = new Image();
+    img.onload = () => {
+      const wrap = document.getElementById('previewWrap');
+      const canvas = document.getElementById('previewCanvas');
+      const ctx = canvas.getContext('2d');
+      canvas.width = img.width; canvas.height = img.height;
+      ctx.drawImage(img, 0, 0);
+      wrap.style.display = 'block';
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+  checkReady();
+}
+
+document.querySelectorAll('.filter-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const f = btn.dataset.filter;
+    if (selectedFilters.has(f)) { selectedFilters.delete(f); btn.classList.remove('active'); }
+    else { selectedFilters.add(f); btn.classList.add('active'); }
+    checkReady();
+  });
+});
+
+function checkReady() {
+  document.getElementById('submitBtn').disabled = !(selectedFile && selectedFilters.size > 0);
+}
+
+document.getElementById('submitBtn').addEventListener('click', async () => {
+  if (!selectedFile || selectedFilters.size === 0) return;
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Subiendo...';
+
+  try {
+    const res = await fetch(`${API}/presign?filename=${encodeURIComponent(selectedFile.name)}`);
+    const { url, fields, key } = await res.json();
+
+    const form = new FormData();
+    Object.entries(fields).forEach(([k, v]) => form.append(k, v));
+    form.append('file', selectedFile);
+    await fetch(url, { method: 'POST', body: form });
+
+    btn.innerHTML = '<span class="spinner"></span>Encolando...';
+
+    const jobForm = new FormData();
+    jobForm.append('s3_key', key);
+    jobForm.append('filters', JSON.stringify([...selectedFilters]));
+    const jobRes = await fetch(`${API}/jobs`, { method: 'POST', body: jobForm });
+    const { job_id } = await jobRes.json();
+
+    toast('Trabajo creado');
+
+    const history = loadHistory();
+    history.unshift({ id: job_id, filename: selectedFile.name, filters: [...selectedFilters], originalUrl: URL.createObjectURL(selectedFile), status: 'pendiente' });
+    saveHistory(history);
+
+    addJobCard(job_id, selectedFile.name, [...selectedFilters], URL.createObjectURL(selectedFile));
+    listenJob(job_id);
+
+    selectedFile = null; selectedFilters.clear();
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('previewWrap').style.display = 'none';
+    btn.innerHTML = 'Procesar imagen';
+
+  } catch (err) {
+    console.error(err);
+    toast('Error — revisa la consola');
+    btn.disabled = false;
+    btn.innerHTML = 'Procesar imagen';
+  }
+});
+
+function deleteJob(jobId) {
+  const card = document.getElementById(`job-${jobId}`);
+  if (card) {
+    card.style.transition = 'opacity .2s';
+    card.style.opacity = '0';
+    setTimeout(() => {
+      card.remove();
+      const history = loadHistory().filter(j => j.id !== jobId);
+      saveHistory(history);
+      const list = document.getElementById('jobsList');
+      if (!list.querySelector('.job-card')) {
+        list.innerHTML = '<div class="empty">Aún no hay trabajos</div>';
+      }
+      updateCount();
+    }, 200);
+  }
+}
+
+function addJobCard(jobId, filename, filters, originalUrl) {
+  const list = document.getElementById('jobsList');
+  const empty = list.querySelector('.empty');
+  if (empty) empty.remove();
+
+  const card = document.createElement('div');
+  card.className = 'job-card';
+  card.id = `job-${jobId}`;
+
+  const filterLabels = {
+    grayscale: 'Escala de grises', sepia: 'Sepia', blur: 'Desenfoque',
+    sharpen: 'Enfocar', resize: 'Redimensionar', thumbnail: 'Miniatura'
+  };
+  const filtersText = filters.map(f => filterLabels[f] || f).join(', ');
+
+  card.innerHTML = `
+    <div class="job-top">
+      <div class="job-top-left">
+        <span class="job-name">${filename}</span>
+        <span class="status-pill pendiente" id="badge-${jobId}">Pendiente</span>
+      </div>
+      <div class="job-top-right">
+        <button class="delete-btn" onclick="deleteJob('${jobId}')" title="Eliminar">✕</button>
+      </div>
+    </div>
+    <div class="job-meta">${filtersText}</div>
+    <div class="progress-track"><div class="progress-fill" id="prog-${jobId}" style="width:8%"></div></div>
+    <div class="before-after" id="ba-${jobId}">
+      <div class="ba-wrap">
+        <img src="${originalUrl}" alt="antes" />
+        <span class="ba-tag">Antes</span>
+      </div>
+      <div class="ba-wrap" id="after-${jobId}">
+        <img src="${originalUrl}" style="opacity:.2;filter:grayscale(1)" alt="después" />
+        <span class="ba-tag">Después</span>
+      </div>
+    </div>
+    <button class="dl-btn" id="dl-${jobId}" onclick="downloadResult('${jobId}')">Descargar resultado</button>
+  `;
+  list.prepend(card);
+  updateCount();
+}
+
+const STATUS_LABELS = { pendiente: 'Pendiente', 'en proceso': 'Procesando', completada: 'Completada', error: 'Error' };
+const STATUS_PCT    = { pendiente: 8, 'en proceso': 55, completada: 100, error: 100 };
+
+function listenJob(jobId) {
+  const es = new EventSource(`${API}/status/${jobId}`);
+  es.onmessage = e => {
+    const job = JSON.parse(e.data);
+    updateCard(jobId, job.status, job.result);
+    if (job.status === 'completada' || job.status === 'error') es.close();
+  };
+  es.onerror = () => es.close();
+}
+
+function updateCard(jobId, status, resultKey) {
+  const badge = document.getElementById(`badge-${jobId}`);
+  if (badge) { badge.textContent = STATUS_LABELS[status] || status; badge.className = `status-pill ${status.replace(' ', '-')}`; }
+
+  const prog = document.getElementById(`prog-${jobId}`);
+  if (prog) {
+    prog.style.width = `${STATUS_PCT[status] || 8}%`;
+    if (status === 'completada') prog.classList.add('done');
+    if (status === 'error') prog.classList.add('fail');
+  }
+
+  const ba = document.getElementById(`ba-${jobId}`);
+  if (ba) ba.classList.add('visible');
+
+  if (status === 'completada' && resultKey) {
+    fetch(`${API}/download/${jobId}`)
+      .then(r => r.json())
+      .then(({ url }) => {
+        const afterWrap = document.getElementById(`after-${jobId}`);
+        if (afterWrap) { const img = afterWrap.querySelector('img'); img.src = url; img.style = ''; }
+        const dl = document.getElementById(`dl-${jobId}`);
+        if (dl) dl.classList.add('visible');
+      });
+  }
+
+  const history = loadHistory();
+  const idx = history.findIndex(j => j.id === jobId);
+  if (idx !== -1) { history[idx].status = status; saveHistory(history); }
+}
+
+async function downloadResult(jobId) {
+  try {
+    const res = await fetch(`${API}/download/${jobId}`);
+    const { url } = await res.json();
+    const imgRes = await fetch(url);
+    const blob = await imgRes.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = blobUrl;
+    a.download = `procesada_${jobId.slice(0, 8)}.jpg`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(blobUrl);
+    toast('Descargando...');
+  } catch (err) {
+    toast('Error al descargar');
+  }
+}
+
+window.addEventListener('load', () => {
+  loadHistory().forEach(job => {
+    addJobCard(job.id, job.filename, job.filters, job.originalUrl || '');
+    updateCard(job.id, job.status, '');
+    if (job.status !== 'completada' && job.status !== 'error') listenJob(job.id);
+  });
+});
+</script>
+</body>
+</html>
